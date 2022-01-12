@@ -1,4 +1,3 @@
-from django.utils import timezone
 from django.shortcuts import get_object_or_404
 
 from rest_framework.generics import ListCreateAPIView, RetrieveUpdateDestroyAPIView
@@ -9,12 +8,7 @@ from rest_framework.parsers import MultiPartParser
 
 from products import serializers
 from products.models import Product, ProductImage
-
-
-def get_current_time():
-    """returns current time"""
-    now = timezone.now().isoformat()
-    return now
+from helpers import functions as f
 
 
 def get_product_images(product_id, main_image=False):
@@ -71,7 +65,7 @@ class ProductListCreateView(ListCreateAPIView):
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
         user = self.request.user
-        now = get_current_time()
+        now = f.get_current_time()
         serializer.save(request_user=user, created_on=now, updated_on=now)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
@@ -89,15 +83,8 @@ class ProductDetailView(RetrieveUpdateDestroyAPIView):
     def retrieve(self, request, *args, **kwargs):
         """returns a single product object"""
         queryset = self.get_queryset()
-        product = queryset.filter(pk=kwargs["id"]).first()
-        if not product:
-            error = {
-                "message": f"Product with id ({kwargs['id']}) is not found"
-            }
-            return Response(error, status=status.HTTP_404_NOT_FOUND)
-
-        serializer = self.serializer_class(product)
-        response_data = serializer.data
+        product = get_object_or_404(queryset, pk=kwargs["id"])
+        response_data = self.serializer_class(product).data
         images = get_product_images(kwargs["id"])
         response_data["images"] = serializers.ProductImageSerializer(
             images,
@@ -109,19 +96,15 @@ class ProductDetailView(RetrieveUpdateDestroyAPIView):
     def update(self, request, *args, **kwargs):
         """updates a product obj"""
         queryset = self.get_queryset()
-        product = queryset.filter(pk=kwargs["id"]).first()
-        if not product:
-            error = {
-                "message": f"Product with id ({kwargs['id']}) is not found"
-            }
-            return Response(error, status=status.HTTP_404_NOT_FOUND)
-
+        product = get_object_or_404(queryset, pk=kwargs["id"])
         serializer = self.serializer_class(product, data=request.data, partial=True)
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-        user = self.request.user
-        serializer.save(request_user=user, updated_on=get_current_time())
+        serializer.save(
+            request_user=request.user,
+            updated_on=f.get_current_time()
+        )
         response_data = serializer.data
         images = get_product_images(kwargs["id"])
         response_data["images"] = serializers.ProductImageSerializer(
@@ -134,21 +117,17 @@ class ProductDetailView(RetrieveUpdateDestroyAPIView):
     def destroy(self, request, *args, **kwargs):
         """marks a product is_deleted to true"""
         queryset = self.get_queryset()
-        product = queryset.filter(pk=kwargs["id"]).first()
-        if not product:
-            error = {
-                "message": f"Product with id ({kwargs['id']}) is not found"
-            }
-            return Response(error, status=status.HTTP_404_NOT_FOUND)
-
-        user = self.request.user
+        product = get_object_or_404(queryset, pk=kwargs["id"])
         modified_product = self.serializer_class(product).data
         modified_product["is_deleted"] = True
-        serializer = self.serializer_class(product, data=modified_product)
+        serializer = self.serializer_class(product, data=modified_product, partial=True)
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-        serializer.save(request_user=user, updated_on=get_current_time())
+        serializer.save(
+            request_user=request.user,
+            updated_on=f.get_current_time()
+        )
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
@@ -161,15 +140,9 @@ class ProductImageView(ListCreateAPIView):
 
     def list(self, request, *args, **kwargs):
         """returns a list of product images"""
-        product_id = kwargs["id"]
-        product = Product.objects.filter(pk=product_id, is_deleted=False).first()
-        if not product:
-            error = {
-                "message": f"Product with id ({product_id}) is not found"
-            }
-            return Response(error, status=status.HTTP_404_NOT_FOUND)
-
-        images = get_product_images(product_id)
+        get_object_or_404(Product, pk=kwargs["id"], is_deleted=False)
+        images = get_product_images(kwargs["id"])
+        print(images)
         serializer = serializers.ProductImageSerializer(
             images,
             many=True,
@@ -179,21 +152,18 @@ class ProductImageView(ListCreateAPIView):
 
     def create(self, request, *args, **kwargs):
         """creates a new product image in server"""
-        product_id = kwargs["id"]
-        product = Product.objects.filter(pk=product_id, is_deleted=False).first()
-        if not product:
-            error = {
-                "message": f"Product with id ({product_id}) is not found"
-            }
-            return Response(error, status=status.HTTP_404_NOT_FOUND)
-
+        product = get_object_or_404(Product, pk=kwargs["id"], is_deleted=False)
         serializer = self.serializer_class(data=request.data, context={"request": request})
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-        user = self.request.user
-        now = get_current_time()
-        serializer.save(product=product, request_user=user, created_on=now, updated_on=now)
+        now = f.get_current_time()
+        serializer.save(
+            product=product,
+            request_user=request.user,
+            created_on=now,
+            updated_on=now
+        )
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
@@ -205,14 +175,7 @@ class ProductImageDetailView(RetrieveUpdateDestroyAPIView):
 
     def retrieve(self, request, *args, **kwargs):
         """returns a product image with specified id"""
-        product_id = kwargs["id"]
-        product = Product.objects.filter(pk=product_id, is_deleted=False).first()
-        if not product:
-            error = {
-                "message": f"Product with id ({product_id}) is not found"
-            }
-            return Response(error, status=status.HTTP_404_NOT_FOUND)
-
+        get_object_or_404(Product, pk=kwargs["id"], is_deleted=False)
         queryset = self.get_queryset()
         product_image = queryset.filter(pk=kwargs["image_id"]).first()
         if product_image:
@@ -226,14 +189,7 @@ class ProductImageDetailView(RetrieveUpdateDestroyAPIView):
 
     def update(self, request, *args, **kwargs):
         """updates a product image obj"""
-        product_id = kwargs["id"]
-        product = Product.objects.filter(pk=product_id, is_deleted=False).first()
-        if not product:
-            error = {
-                "message": f"Product with id ({product_id}) is not found"
-            }
-            return Response(error, status=status.HTTP_404_NOT_FOUND)
-
+        get_object_or_404(Product, pk=kwargs["id"], is_deleted=False)
         queryset = self.get_queryset()
         product_image = queryset.filter(pk=kwargs["image_id"]).first()
         if not product_image:
@@ -242,24 +198,19 @@ class ProductImageDetailView(RetrieveUpdateDestroyAPIView):
             }
             return Response(error, status=status.HTTP_404_NOT_FOUND)
 
-        serializer = self.get_serializer(product_image, data=request.data)
+        serializer = self.get_serializer(product_image, data=request.data, partial=True)
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-        user = self.request.user
-        serializer.save(request_user=user, updated_on=get_current_time())
+        serializer.save(
+            request_user=request.user,
+            updated_on=f.get_current_time()
+        )
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def destroy(self, request, *args, **kwargs):
         """deletes a product image object in the db"""
-        product_id = kwargs["id"]
-        product = Product.objects.filter(pk=product_id, is_deleted=False).first()
-        if not product:
-            error = {
-                "message": f"Product with id ({product_id}) is not found"
-            }
-            return Response(error, status=status.HTTP_404_NOT_FOUND)
-
+        get_object_or_404(Product, pk=kwargs["id"], is_deleted=False)
         queryset = self.get_queryset()
         product_image = queryset.filter(pk=kwargs["image_id"]).first()
         if not product_image:
