@@ -106,13 +106,17 @@ class OrderItemListCreateView(ListCreateAPIView):
     def create(self, request, *args, **kwargs):
         """creates a new order item for the specified order"""
         order = get_object_or_404(Order, pk=kwargs["order_id"], is_deleted=False)
-        user = self.request.user
         serializer = self.serializer_class(data=request.data)
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
         now = f.get_current_time()
-        serializer.save(request_user=user, order=order, created_on=now, updated_on=now)
+        serializer.save(
+            request_user=request.user,
+            order=order,
+            created_on=now,
+            updated_on=now
+        )
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 

@@ -71,11 +71,12 @@ class OrderItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.OrderItem
         fields = "__all__"
-        read_only_fields = ("id", "created_by", "updated_by", "created_on", "updated_on")
+        read_only_fields = ("id", "created_by", "updated_by", "created_on", "updated_on",
+                            "order")
 
     def create(self, validated_data):
         """creates a new order item in db"""
-        order = validated_data.pop("order")
+        order = validated_data.get("order")
         request = self.context.get("request")
         if request and hasattr(request, "user"):
             request_user = request.user

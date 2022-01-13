@@ -1,31 +1,23 @@
 from django.db import models
-from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, \
     PermissionsMixin
+from django.conf import settings
+
+from core.models import CustomBaseClass
 
 USER_TYPES = (
-    (1, "Normal user"),
-    (2, "Business user"),
-    (3, "Admin"),
+    ("normal_user", "Normal user"),
+    ("business_user", "Business user"),
+    ("business_staff", "Business staff"),
+    ("admin", "Admin"),
 )
 
 GENDERS = (
-    (1, "Male"),
-    (2, "Female"),
+    ("male", "Male"),
+    ("female", "Female"),
+    ("other", "Other"),
 )
-
-
-class BaseClass(models.Model):
-    """Base class to add created_on and updated_on fields"""
-    created_on = models.DateTimeField(default=timezone.now)
-    updated_on = models.DateTimeField(null=True, blank=True)
-    created_by = models.CharField(max_length=255, null=True, blank=True)
-    updated_by = models.CharField(max_length=255, null=True, blank=True)
-
-    class Meta:
-        abstract = True
-
 
 class UserManager(BaseUserManager):
     """Default manager for user objects"""
@@ -45,22 +37,28 @@ class UserManager(BaseUserManager):
     def create_superuser(self, email, password, **extra_fields):
         """creates an admin user in the db"""
         user = self.create_user(email, password, **extra_fields)
-        user.is_admin = True
+        user.is_superuser = True
         user.save(using=self._db)
 
         return user
 
 
-class User(AbstractBaseUser, BaseClass, PermissionsMixin):
+class User(AbstractBaseUser, CustomBaseClass, PermissionsMixin):
     """Default user model"""
     email = models.EmailField(_("Email address"), max_length=255, unique=True)
+    user_role = models.CharField(_("User role"), max_length=50,
+                                 choices=USER_TYPES, default="normal_user")
     is_active = models.BooleanField(default=True)
-    is_admin = models.BooleanField(default=False)
+    is_superuser = models.BooleanField(default=False)
 
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = []
 
     objects = UserManager()
+
+    class Meta:
+        db_table = "t_user"
+        ordering = ("-created_on",)
 
     def __str__(self):
         """returns string representation of user"""
@@ -77,19 +75,22 @@ class User(AbstractBaseUser, BaseClass, PermissionsMixin):
     @property
     def is_staff(self):
         """returns True if user is admin or staff member"""
-        return self.is_admin
+        return self.is_superuser
 
 
-class UserProfile(BaseClass):
+class UserProfile(CustomBaseClass):
     """profile model for user object"""
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="profile")
+    user = models.OneToOneField(User, on_delete=models.CASCADE, primary_key=True,
+                                related_name="profile")
     full_name = models.CharField(_("Full name"), max_length=255, default="")
     display_name = models.CharField(_("Display name"), max_length=128, default="")
-    user_type = models.CharField(_("User type"), max_length=50,
-                                 choices=USER_TYPES, default=1)
     phone = models.IntegerField(null=True, blank=True)
     date_of_birth = models.DateField(null=True, blank=True)
-    gender = models.CharField(max_length=10, choices=GENDERS, default=2)
+    gender = models.CharField(max_length=10, choices=GENDERS, default="female")
+
+    class Meta:
+        db_table = "t_user_profile"
+        ordering = ("-created_on",)
 
     def __str__(self):
         """returns string representation of user profile"""
@@ -109,3 +110,20 @@ class UserProfile(BaseClass):
     def get_short_name(self):
         """returns display name of the user"""
         return f"{self.display_name}"
+
+
+class Business(CustomBaseClass):
+    """model for businesses"""
+    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+                              null=True, related_name="business")
+    name = models.CharField(max_length=255, unique=True)
+    max_staff_count = models.IntegerField(default=2)
+
+    class Meta:
+        db_table = "t_business"
+        ordering = ("-created_on",)
+        verbose_name_plural = "businesses"
+
+    def __str__(self):
+        """returns string representation of business"""
+        return f"{self.name}"
