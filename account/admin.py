@@ -10,28 +10,20 @@ class UserAdmin(BaseUserAdmin):
     model = models.User
     ordering = ("-created_on",)
     list_filter = ("is_active", "user_role", "is_superuser")
-    list_display = ("id", "email", "user_role", "is_active", "created_on", "updated_on")
-    search_fields = ("email", "user_role", "id")
+    list_display = ("id", "username", "email", "user_role", "is_active",
+                    "created_on", "updated_on")
+    search_fields = ("username", "email", "user_role", "id")
     fieldsets = (
-        (None, {"fields": ("email", "password",)}),
+        (None, {"fields": ("username", "email", "password",)}),
         ("Personal info", {"fields": ("user_role",)}),
         ("Permissions", {"fields": ("is_superuser",)}),
     )
     add_fieldsets = (
         (None, {
             "classes": ("wide",),
-            "fields": ("email", "user_role", "password"),
+            "fields": ("username", "email", "user_role", "password"),
         }),
     )
-
-
-# class UserProfileAdmin(Manager):
-#     """Custom manager for user profiles"""
-#     model = models.UserProfile
-#     ordering = ("-created_on",)
-#     list_filter = ("gender",)
-#     list_display = ("user", "full_name", "display_name", "phone", "date_of_birth", "gender")
-#     search_fields = ("full_name", "display_name", "phone")
 
 
 admin.site.register(models.User, UserAdmin)

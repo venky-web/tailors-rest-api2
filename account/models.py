@@ -2,13 +2,12 @@ from django.db import models
 from django.utils.translation import gettext_lazy as _
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, \
     PermissionsMixin
-from django.conf import settings
 
 from core.models import CustomBaseClass
 
 USER_TYPES = (
     ("normal_user", "Normal user"),
-    ("business_user", "Business user"),
+    ("business_admin", "Business admin"),
     ("business_staff", "Business staff"),
     ("admin", "Admin"),
 )
@@ -19,39 +18,63 @@ GENDERS = (
     ("other", "Other"),
 )
 
+
+class Business(CustomBaseClass):
+    """model for businesses"""
+    name = models.CharField(max_length=255, unique=True)
+    staff_count = models.IntegerField(default=0)
+    max_staff_count = models.IntegerField(default=2)
+
+    class Meta:
+        db_table = "t_business"
+        ordering = ("-created_on",)
+        verbose_name_plural = "businesses"
+
+    def __str__(self):
+        """returns string representation of business"""
+        return f"{self.name}"
+
+
 class UserManager(BaseUserManager):
     """Default manager for user objects"""
 
-    def create_user(self, email, password=None, **extra_fields):
+    def create_user(self, username, password=None, **extra_fields):
         """creates a new user in the DB"""
-        if not email or not password:
-            return ValueError(_("Email or password is missing"))
+        if not username or not password:
+            return ValueError(_("Username or password is missing"))
 
-        email = self.normalize_email(email)
-        user = self.model(email=email, **extra_fields)
+        username = username.lower()
+        email = extra_fields.get("email", None)
+        if email is not None:
+            email = extra_fields.pop("email")
+            email = self.normalize_email(email)
+            user = self.model(username=username, email=email, **extra_fields)
+        else:
+            user = self.model(username=username, **extra_fields)
         user.set_password(password)
         user.save(using=self._db)
-
         return user
 
-    def create_superuser(self, email, password, **extra_fields):
+    def create_superuser(self, username, password, **extra_fields):
         """creates an admin user in the db"""
-        user = self.create_user(email, password, **extra_fields)
+        user = self.create_user(username, password, **extra_fields)
         user.is_superuser = True
         user.save(using=self._db)
-
         return user
 
 
 class User(AbstractBaseUser, CustomBaseClass, PermissionsMixin):
     """Default user model"""
-    email = models.EmailField(_("Email address"), max_length=255, unique=True)
+    username = models.CharField(_("Username"), max_length=255, unique=True, db_index=True,
+                                default="")
+    email = models.EmailField(_("Email address"), max_length=255, null=True, blank=True)
     user_role = models.CharField(_("User role"), max_length=50,
                                  choices=USER_TYPES, default="normal_user")
+    business = models.ForeignKey(Business, on_delete=models.SET_NULL, null=True)
     is_active = models.BooleanField(default=True)
     is_superuser = models.BooleanField(default=False)
 
-    USERNAME_FIELD = "email"
+    USERNAME_FIELD = "username"
     REQUIRED_FIELDS = []
 
     objects = UserManager()
@@ -62,7 +85,7 @@ class User(AbstractBaseUser, CustomBaseClass, PermissionsMixin):
 
     def __str__(self):
         """returns string representation of user"""
-        return f"{self.email}"
+        return f"{self.username}"
 
     def has_perm(self, perm, obj=None):
         """returns True if a user has permission"""
@@ -111,19 +134,3 @@ class UserProfile(CustomBaseClass):
         """returns display name of the user"""
         return f"{self.display_name}"
 
-
-class Business(CustomBaseClass):
-    """model for businesses"""
-    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
-                              null=True, related_name="business")
-    name = models.CharField(max_length=255, unique=True)
-    max_staff_count = models.IntegerField(default=2)
-
-    class Meta:
-        db_table = "t_business"
-        ordering = ("-created_on",)
-        verbose_name_plural = "businesses"
-
-    def __str__(self):
-        """returns string representation of business"""
-        return f"{self.name}"
