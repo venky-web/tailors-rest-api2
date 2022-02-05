@@ -5,14 +5,18 @@ from rest_framework.response import Response
 from rest_framework.status import HTTP_400_BAD_REQUEST
 
 from account.models import Business
+from core.authentication import generate_access_token, generate_refresh_token
 
 
-def update_business_staff_count(business_id, add_staff=1):
+def update_business_staff_count(business_id, add_staff=1, operation="add"):
     """updates staff count of business
-        Args: business_id, add_staff=1
+        Args: business_id, add_staff=1, operation="add"
     """
     business_instance = get_object_or_404(Business, pk=business_id)
-    business_instance.staff_count += add_staff
+    if operation == "add":
+        business_instance.staff_count += add_staff
+    elif operation == "delete":
+        business_instance.staff_count -= add_staff
     business_instance.save()
     return business_instance
 
@@ -47,3 +51,11 @@ def check_for_username_password(request):
             }
             return Response(error, status=HTTP_400_BAD_REQUEST)
 
+
+def add_tokens(response, user):
+    """adds refresh and access tokens to the response"""
+    access_token = generate_access_token(user)
+    refresh_token = generate_refresh_token(user)
+    response.set_cookie(key="refresh_token", value=refresh_token, httponly=True)
+    response.data["access_token"] =  access_token
+    return response

@@ -59,6 +59,7 @@ class UserManager(BaseUserManager):
         """creates an admin user in the db"""
         user = self.create_user(username, password, **extra_fields)
         user.is_superuser = True
+        user.user_role = "admin"
         user.save(using=self._db)
         return user
 

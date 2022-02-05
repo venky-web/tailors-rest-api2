@@ -11,7 +11,7 @@ class UserAdmin(BaseUserAdmin):
     ordering = ("-created_on",)
     list_filter = ("is_active", "user_role", "is_superuser")
     list_display = ("id", "username", "email", "user_role", "is_active",
-                    "created_on", "updated_on")
+                    "business", "created_on", "updated_on")
     search_fields = ("username", "email", "user_role", "id")
     fieldsets = (
         (None, {"fields": ("username", "email", "password",)}),
