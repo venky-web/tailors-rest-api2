@@ -3,7 +3,6 @@ from django.contrib.auth import get_user_model
 from django.db.models import Q
 
 from rest_framework import generics, status
-from rest_framework.views import APIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
@@ -176,43 +175,43 @@ class UserDetailView(generics.RetrieveUpdateDestroyAPIView):
         self.check_object_permissions(request, user)
         user.is_active = False
         user.save()
-        return Response(None, status=status.HTTP_200_OK)
+        return Response(None, status=status.HTTP_204_NO_CONTENT)
 
 
-class StaffUserView(APIView):
-    """View to do CRUD operations for staff users"""
-    serializer_class = UserSerializer
-    permission_classes = (IsAuthenticated, permissions.IsOwner)
+class BusinessDetailView(generics.RetrieveUpdateDestroyAPIView):
+    """view to retrieve, update and destroy business obj"""
+    queryset = models.Business.objects.all()
+    serializer_class = BusinessSerializer
+    permission_classes = (IsAuthenticated, permissions.IsBusinessAdminOrSuperuser)
 
-    def get(self, request):
-        """returns a staff user"""
-        staff_users = get_user_model().objects.filter(business=request.user.business).first()
-        response_data = self.serializer_class(staff_users, many=True)
-        return Response(response_data, status=status.HTTP_200_OK)
+    def retrieve(self, request, *args, **kwargs):
+        """returns business obj with valid id"""
+        queryset = self.get_queryset()
+        business = get_object_or_404(queryset, pk=kwargs["id"])
+        self.check_object_permissions(request, business)
+        serialized_data = self.get_serializer(business).data
+        return Response(serialized_data)
 
-    def post(self, request):
-        """creates a new staff user"""
-        pass
+    def update(self, request, *args, **kwargs):
+        """updates a business obj with valid id"""
+        queryset = models.Business.objects.all()
+        print(queryset)
+        business = get_object_or_404(queryset, pk=kwargs["id"])
+        print(business)
+        self.check_object_permissions(request, business)
+        serializer = self.get_serializer(business, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save(
+            updated_on=helpers.get_current_time(),
+            request_user=request.user
+        )
+        return Response(serializer.data)
 
-    # def get_queryset(self):
-    #     """returns user queryset for staff users"""
-    #     return get_user_model().objects.filter(user_role="business_staff")
-    #
-    # def list(self, request, *args, **kwargs):
-    #     """returns list of staff users"""
-    #     queryset = self.get_queryset().filter(business=request.user.business)
-    #     staff_users = UserSerializer(queryset, many=True).data
-    #     return Response(staff_users, status=status.HTTP_200_OK)
-    #
-    # def create(self, request, *args, **kwargs):
-    #     """creates a new staff user"""
-    #     serializer = self.serializer_class(data=request.data)
-    #     serializer.is_valid(raise_exception=True)
-    #     now = f.get_current_time()
-    #     serializer.save(
-    #         created_on=now,
-    #         updated_on=now,
-    #         business=request.user.business,
-    #         user_role="business_staff"
-    #     )
-    #     return Response(serializer.data, status=status.HTTP_200_OK)
+    def destroy(self, request, *args, **kwargs):
+        """deletes a business obj with valid id"""
+        queryset = self.get_queryset()
+        business = get_object_or_404(queryset, pk=kwargs["id"])
+        self.check_object_permissions(request, business)
+        business.delete()
+        return Response(None, status=status.HTTP_204_NO_CONTENT)
+

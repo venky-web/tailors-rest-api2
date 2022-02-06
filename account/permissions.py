@@ -46,3 +46,22 @@ class MaxStaffCount(BasePermission):
         if business:
             return business.staff_count < business.max_staff_count
         return False
+
+
+class IsBusinessAdminOrSuperuser(BasePermission):
+    """checks whether user is business admin or superuser"""
+    def has_permission(self, request, view):
+        """returns true if user has permission to the view"""
+        if request.user.is_superuser:
+            return True
+
+        return request.user.user_role == "business_admin"
+
+    def has_object_permission(self, request, view, obj):
+        """returns true if user has permission to view/edit/delete the obj"""
+        if request.user.is_superuser:
+            return True
+
+        return request.user.user_role == "business_admin" and \
+               request.user.business and \
+               request.user.business.id == obj.id

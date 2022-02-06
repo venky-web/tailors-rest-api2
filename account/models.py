@@ -71,7 +71,7 @@ class User(AbstractBaseUser, CustomBaseClass, PermissionsMixin):
     email = models.EmailField(_("Email address"), max_length=255, null=True, blank=True)
     user_role = models.CharField(_("User role"), max_length=50,
                                  choices=USER_TYPES, default="normal_user")
-    business = models.ForeignKey(Business, on_delete=models.SET_NULL, null=True)
+    business = models.ForeignKey(Business, on_delete=models.CASCADE, null=True)
     is_active = models.BooleanField(default=True)
     is_superuser = models.BooleanField(default=False)
 
