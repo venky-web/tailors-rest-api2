@@ -27,7 +27,9 @@ SECRET_KEY = os.environ.get("SECRET_KEY", env_keys.SECRET_KEY)
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get("DEBUG", env_keys.DEBUG)
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = [
+    "tailors-app-api.herokuapp.com",
+]
 
 
 # Application definition
@@ -133,11 +135,11 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/4.0/howto/static-files/
 
-STATIC_URL = 'static/'
-MEDIA_URL = 'media/'
+STATIC_URL = os.environ.get("STATIC_URL", env_keys.STATIC_URL)
+MEDIA_URL = os.environ.get("MEDIA_URL", env_keys.MEDIA_URL)
 
-STATIC_ROOT = 'resources/uploads/static/'
-MEDIA_ROOT = 'resources/uploads/media/'
+STATIC_ROOT = os.environ.get("STATIC_ROOT", env_keys.STATIC_ROOT)
+MEDIA_ROOT = os.environ.get("MEDIA_ROOT", env_keys.MEDIA_ROOT)
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.0/ref/settings/#default-auto-field
