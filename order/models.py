@@ -12,7 +12,7 @@ class Order(CustomBaseClass):
     net_amount = models.DecimalField(max_digits=9, decimal_places=2, default=0)
     paid_amount = models.DecimalField(max_digits=9, decimal_places=2, default=0)
     discount = models.DecimalField(max_digits=4, decimal_places=1, default=0)
-    delivery_date = models.DateTimeField()
+    delivery_date = models.DateTimeField(null=True, blank=True)
     order_status = models.CharField(max_length=64, default="Not yet started")
     comments = models.TextField(max_length=1024, default="", blank=True)
     is_one_time_delivery = models.BooleanField(default=True)

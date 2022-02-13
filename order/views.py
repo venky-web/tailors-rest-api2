@@ -48,7 +48,8 @@ class OrderDetailView(RetrieveUpdateDestroyAPIView):
     def get_queryset(self):
         """returns an order queryset for current user"""
         user = self.request.user
-        orders = Order.objects.filter(created_by=user.id, is_deleted=False)
+        orders = Order.objects.filter(Q(created_by=user.id) | Q(updated_by=user.id),
+                                      Q(is_deleted=False))
         return orders
 
     def retrieve(self, request, *args, **kwargs):
@@ -93,7 +94,9 @@ class OrderItemListCreateView(ListCreateAPIView):
     def get_queryset(self):
         """returns queryset for order items"""
         order_id = self.kwargs["order_id"]
-        order_items = OrderItem.objects.filter(order_id=order_id, is_deleted=False)
+        user = self.request.user
+        order_items = OrderItem.objects.filter(Q(created_by=user.id) | Q(updated_by=user.id),
+                                               Q(order_id=order_id), Q(is_deleted=False))
         return order_items
 
     def list(self, request, *args, **kwargs):
@@ -128,7 +131,8 @@ class OrderItemDetailView(RetrieveUpdateDestroyAPIView):
     def get_queryset(self):
         """returns queryset of order items based on order id"""
         order_id = self.kwargs["order_id"]
-        order_items = OrderItem.objects.filter(order_id=order_id, is_deleted=False)
+        order_items = OrderItem.objects.filter(Q(created_by=user.id) | Q(updated_by=user.id),
+                                               Q(order_id=order_id), Q(is_deleted=False))
         return order_items
 
     def retrieve(self, request, *args, **kwargs):

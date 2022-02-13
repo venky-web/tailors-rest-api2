@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from products.models import Product, ProductImage
+from products.models import Product, ProductDesignImage
 
 
 class ProductImageSerializer(serializers.ModelSerializer):
@@ -8,7 +8,7 @@ class ProductImageSerializer(serializers.ModelSerializer):
     image_url = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
-        model = ProductImage
+        model = ProductDesignImage
         fields = ("id", "image_url", "image", "image_code")
         read_only_fields = ("id",)
         extra_kwargs = {
@@ -27,7 +27,7 @@ class ProductImageSerializer(serializers.ModelSerializer):
         """creates a new image details obj in DB"""
         image_code = validated_data.get("image_code")
         if image_code:
-            image = ProductImage.objects.filter(image_code=image_code).first()
+            image = ProductDesignImage.objects.filter(image_code=image_code).first()
             if image:
                 error = {
                     "message": f"Product with code ({image_code}) exists"
@@ -43,7 +43,7 @@ class ProductImageSerializer(serializers.ModelSerializer):
 
         validated_data["created_by"] = request_user.id
         validated_data["updated_by"] = request_user.id
-        product_image = ProductImage.objects.create(**validated_data)
+        product_image = ProductDesignImage.objects.create(**validated_data)
         if len(product_image.image_code) == 0:
             product = validated_data["product"]
             product_image.image_code = f"{product.product_code}-{product_image.id}"
@@ -54,7 +54,7 @@ class ProductImageSerializer(serializers.ModelSerializer):
         """updates a product image instance in db with validated data"""
         image_code = validated_data.get("image_code")
         if image_code:
-            image = ProductImage.objects.filter(image_code=image_code).first()
+            image = ProductDesignImage.objects.filter(image_code=image_code).first()
             if image:
                 error = {
                     "message": f"Product with code ({image_code}) exists"
@@ -82,11 +82,20 @@ class ProductSerializer(serializers.ModelSerializer):
     """serializes product objects"""
     created_on = serializers.DateTimeField(required=False)
     updated_on = serializers.DateTimeField(required=False)
+    image_url = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = Product
         fields = "__all__"
         read_only_fields = ("id", "created_by", "updated_by")
+
+    def get_image_url(self, instance):
+        """returns complete url of product image"""
+        request = self.context.get("request")
+        if instance.image:
+            image_url = instance.image.url
+            return request.build_absolute_uri(image_url)
+        return None
 
     def create(self, validated_data):
         """creates a new product with validated data"""
@@ -111,8 +120,10 @@ class ProductSerializer(serializers.ModelSerializer):
             validated_data.pop("request_user")
         else:
             request_user = validated_data.pop("request_user")
+        instance.seller = validated_data.get("seller", instance.seller)
         instance.name = validated_data.get("name", instance.name)
         instance.description = validated_data.get("description", instance.description)
+        instance.image = validated_data.get("image", instance.image)
         instance.price = validated_data.get("price", instance.price)
         instance.cost = validated_data.get("cost", instance.cost)
         instance.product_code = validated_data.get("product_code", instance.product_code)

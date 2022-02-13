@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/4.0/ref/settings/
 
 from pathlib import Path
 import os
+from os import getenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -93,9 +94,17 @@ WSGI_APPLICATION = 'tailors_api.wsgi.application'
 # https://docs.djangoproject.com/en/4.0/ref/settings/#databases
 
 DATABASES = {
+    # 'default': {
+    #     'ENGINE': 'django.db.backends.sqlite3',
+    #     'NAME': BASE_DIR / 'db.sqlite3',
+    # },
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.mysql',
+        'NAME': getenv("DB_NAME", "default"),
+        'USER': getenv("DB_USER", "root"),
+        'PASSWORD': getenv("DB_PASS", "root"),
+        'HOST': getenv("DB_HOST", "localhost"),
+        'PORT': getenv("DB_PORT", "3306"),
     }
 }
 
@@ -134,14 +143,14 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/4.0/howto/static-files/
 
-STATIC_URL = os.environ.get("STATIC_URL", "static/")
-MEDIA_URL = os.environ.get("MEDIA_URL", "media/")
+STATIC_URL = getenv("STATIC_URL", "static/")
+MEDIA_URL = getenv("MEDIA_URL", "media/")
 
-STATIC_ROOT = os.environ.get("STATIC_ROOT", "resources/uploads/static/")
-MEDIA_ROOT = os.environ.get("MEDIA_ROOT", "resources/uploads/media/")
+STATIC_ROOT = getenv("STATIC_ROOT", "resources/uploads/static/")
+MEDIA_ROOT = getenv("MEDIA_ROOT", "resources/uploads/media/")
 
 STATICFILES_DIRS = (
-    os.environ.get("STATICFILES_DIRS", os.path.join(BASE_DIR, 'static')),
+    getenv("STATICFILES_DIRS", os.path.join(BASE_DIR, 'static')),
 )
 
 # Default primary key field type

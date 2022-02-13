@@ -7,15 +7,19 @@ from rest_framework import status
 from rest_framework.parsers import MultiPartParser
 
 from products import serializers
-from products.models import Product, ProductImage
+from products.models import Product, ProductDesignImage
 from helpers import functions as f
+from core.permissions import IsProductSeller
 
 
 def get_product_images(product_id, main_image=False):
     """returns product main image or list of images
         args: product_id, main_image (default=False)
     """
-    queryset = ProductImage.objects.filter(product_id=product_id).order_by("-id").only("image")
+    queryset = ProductDesignImage.objects\
+        .filter(product_id=product_id)\
+        .order_by("-id")\
+        .only("image")
     if main_image:
         img = queryset.filter(is_main_image=True)
         if img:
@@ -33,52 +37,41 @@ class ProductListCreateView(ListCreateAPIView):
     """list and create view of product"""
     serializer_class = serializers.ProductSerializer
     permission_classes = (IsAuthenticated,)
+    parser_classes = (MultiPartParser,)
 
     def get_queryset(self):
         """returns queryset of products"""
-        is_deleted = self.request.query_params.get('isDeleted')
-        if is_deleted == "true":
-            return Product.objects.filter(is_deleted=True).order_by("-id")
-        else:
-            return Product.objects.filter(is_deleted=False).order_by("-id")
+        return Product.objects.filter(seller=self.request.user,
+                                      is_deleted=False).order_by("-id")
 
     def list(self, request, *args, **kwargs):
         """returns list of products"""
         queryset = self.get_queryset()
-        serializer = self.serializer_class(queryset, many=True)
-        products = []
-        for product in serializer.data:
-            images = get_product_images(product["id"], True)
-            product["images"] = serializers.ProductImageSerializer(
-                images,
-                many=True,
-                context={"request": request}
-            ).data
-            products.append(product)
-
+        products = self.serializer_class(queryset, many=True).data
         return Response(products, status=status.HTTP_200_OK)
 
     def create(self, request, *args, **kwargs):
         """creates a new product in the db"""
         serializer = self.serializer_class(data=request.data)
-        if not serializer.is_valid():
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-        user = self.request.user
+        serializer.is_valid(raise_exception=True)
         now = f.get_current_time()
-        serializer.save(request_user=user, created_on=now, updated_on=now)
+        serializer.save(
+            request_user=request.user,
+            created_on=now,
+            updated_on=now
+        )
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
 class ProductDetailView(RetrieveUpdateDestroyAPIView):
     """Get, update and delete product view"""
     serializer_class = serializers.ProductSerializer
-    permission_classes = (IsAuthenticated,)
+    permission_classes = (IsAuthenticated, IsProductSeller)
+    parser_classes = (MultiPartParser,)
 
     def get_queryset(self):
         """returns product queryset"""
-        products = Product.objects.filter(is_deleted=False)
-        return products
+        return Product.objects.filter(seller=self.request.user, is_deleted=False)
 
     def retrieve(self, request, *args, **kwargs):
         """returns a single product object"""
@@ -98,9 +91,7 @@ class ProductDetailView(RetrieveUpdateDestroyAPIView):
         queryset = self.get_queryset()
         product = get_object_or_404(queryset, pk=kwargs["id"])
         serializer = self.serializer_class(product, data=request.data, partial=True)
-        if not serializer.is_valid():
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
+        serializer.is_valid(raise_exception=True)
         serializer.save(
             request_user=request.user,
             updated_on=f.get_current_time()
@@ -121,9 +112,7 @@ class ProductDetailView(RetrieveUpdateDestroyAPIView):
         modified_product = self.serializer_class(product).data
         modified_product["is_deleted"] = True
         serializer = self.serializer_class(product, data=modified_product, partial=True)
-        if not serializer.is_valid():
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
+        serializer.is_valid(raise_exception=True)
         serializer.save(
             request_user=request.user,
             updated_on=f.get_current_time()
@@ -133,18 +122,21 @@ class ProductDetailView(RetrieveUpdateDestroyAPIView):
 
 class ProductImageView(ListCreateAPIView):
     """returns a list or creates a product image"""
-    queryset = ProductImage.objects.all()
+    queryset = ProductDesignImage.objects.all()
     serializer_class = serializers.ProductImageSerializer
     permission_classes = (IsAuthenticated,)
     parser_classes = (MultiPartParser,)
 
+    def get_queryset(self):
+        """returns product design images queryset"""
+        return ProductDesignImage.objects.filter(product__seller=self.request.user,
+                                                 product=self.kwargs["id"])
+
     def list(self, request, *args, **kwargs):
         """returns a list of product images"""
-        get_object_or_404(Product, pk=kwargs["id"], is_deleted=False)
-        images = get_product_images(kwargs["id"])
-        print(images)
+        get_object_or_404(Product, pk=kwargs["id"], seller=request.user, is_deleted=False)
         serializer = serializers.ProductImageSerializer(
-            images,
+            self.get_queryset(),
             many=True,
             context={"request": request}
         )
@@ -152,11 +144,12 @@ class ProductImageView(ListCreateAPIView):
 
     def create(self, request, *args, **kwargs):
         """creates a new product image in server"""
-        product = get_object_or_404(Product, pk=kwargs["id"], is_deleted=False)
+        product = get_object_or_404(Product,
+                                    pk=kwargs["id"],
+                                    seller=request.user,
+                                    is_deleted=False)
         serializer = self.serializer_class(data=request.data, context={"request": request})
-        if not serializer.is_valid():
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
+        serializer.is_valid(raise_exception=True)
         now = f.get_current_time()
         serializer.save(
             product=product,
@@ -169,9 +162,15 @@ class ProductImageView(ListCreateAPIView):
 
 class ProductImageDetailView(RetrieveUpdateDestroyAPIView):
     """product image detail view to retrieve, update and destroy"""
-    queryset = ProductImage.objects.all()
+    queryset = ProductDesignImage.objects.all()
     serializer_class = serializers.ProductImageSerializer
     permission_classes = (IsAuthenticated,)
+    parser_classes = (MultiPartParser,)
+
+    def get_queryset(self):
+        """returns queryset of product design images"""
+        return ProductDesignImage.objects.filter(product__seller=self.request.user,
+                                                 product=self.kwargs["id"])
 
     def retrieve(self, request, *args, **kwargs):
         """returns a product image with specified id"""
@@ -199,9 +198,7 @@ class ProductImageDetailView(RetrieveUpdateDestroyAPIView):
             return Response(error, status=status.HTTP_404_NOT_FOUND)
 
         serializer = self.get_serializer(product_image, data=request.data, partial=True)
-        if not serializer.is_valid():
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
+        serializer.is_valid(raise_exception=True)
         serializer.save(
             request_user=request.user,
             updated_on=f.get_current_time()
