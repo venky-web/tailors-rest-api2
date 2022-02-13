@@ -1,0 +1,1 @@
+web: gunicorn tailors_api.wsgi --log-file -
