@@ -14,6 +14,7 @@ from pathlib import Path
 import os
 from os import getenv
 import django_heroku
+from decouple import config, strtobool
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -23,13 +24,13 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/4.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.environ.get("SECRET_KEY")
+SECRET_KEY = config('SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.environ.get("IS_DEVELOPMENT", True)
+DEBUG = config("IS_DEVELOPMENT", True)
 
 ALLOWED_HOSTS = [
-    os.environ.get("HOST_LINK", "127.0.0.1"),
+    config("HOST_LINK", "127.0.0.1"),
 ]
 
 
@@ -102,11 +103,11 @@ DATABASES = {
     # },
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'NAME': os.environ["DB_NAME"],
-        'USER': os.environ["DB_USER"],
-        'PASSWORD': os.environ["DB_PASS"],
-        'HOST': os.environ["DB_HOST"],
-        'PORT': os.environ["DB_PORT"],
+        'NAME': config("DB_NAME"),
+        'USER': config("DB_USER"),
+        'PASSWORD': config("DB_PASS"),
+        'HOST': config("DB_HOST"),
+        'PORT': config("DB_PORT"),
     }
 }
 
