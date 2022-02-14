@@ -15,6 +15,7 @@ import os
 from os import getenv
 import django_heroku
 from decouple import config, strtobool
+import dj_database_url
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -27,7 +28,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = config('SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = config("IS_DEVELOPMENT", True)
+DEBUG = os.environ.get('IS_DEVELOPMENT', '') != 'False'
 
 ALLOWED_HOSTS = [
     config("HOST_LINK", "127.0.0.1"),
@@ -165,4 +166,6 @@ AUTH_USER_MODEL = 'account.User'
 
 CORS_ALLOW_CREDENTIALS = True
 
+db_from_env = dj_database_url.config(conn_max_age=500)
+DATABASES['default'].update(db_from_env)
 django_heroku.settings(locals())
