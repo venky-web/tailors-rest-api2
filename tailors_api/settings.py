@@ -13,7 +13,6 @@ https://docs.djangoproject.com/en/4.0/ref/settings/
 from pathlib import Path
 import os
 from os import getenv
-import django_heroku
 from decouple import config, strtobool
 import dj_database_url
 
@@ -156,7 +155,7 @@ STATIC_ROOT = getenv("STATIC_ROOT", "resources/uploads/static/")
 MEDIA_ROOT = getenv("MEDIA_ROOT", "resources/uploads/media/")
 
 STATICFILES_DIRS = (
-    getenv("STATICFILES_DIRS", os.path.join(BASE_DIR, 'static')),
+    getenv("STATICFILES_DIRS", '/static'),
 )
 
 # Default primary key field type
@@ -170,4 +169,3 @@ CORS_ALLOW_CREDENTIALS = True
 
 db_from_env = dj_database_url.config(conn_max_age=500)
 DATABASES['default'].update(db_from_env)
-django_heroku.settings(locals())
