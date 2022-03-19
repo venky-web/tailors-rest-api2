@@ -110,6 +110,7 @@ class UserProfile(CustomBaseClass):
     display_name = models.CharField(_("Display name"), max_length=128, default="")
     phone = models.IntegerField(null=True, blank=True)
     date_of_birth = models.DateField(null=True, blank=True)
+    joined_date = models.DateField(null=True, blank=True)
     gender = models.CharField(max_length=10, choices=GENDERS, default="female")
 
     class Meta:

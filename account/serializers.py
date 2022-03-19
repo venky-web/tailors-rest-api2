@@ -71,3 +71,44 @@ class BusinessSerializer(serializers.ModelSerializer):
         instance.updated_on = validated_data["updated_on"]
         instance.save()
         return instance
+
+
+class UserProfileSerializer(serializers.ModelSerializer):
+    """serializes user profile data"""
+    class Meta:
+        model = models.UserProfile
+        fields = ("user", "full_name", "display_name", "phone", "date_of_birth",
+                  "joined_date", "gender")
+
+    def create(self, validated_data):
+        """Creates a new user with validated data"""
+        request_user = validated_data.get("request_user")
+        if request_user:
+            validated_data.pop("request_user")
+            validated_data["created_by"] = request_user.id
+            validated_data["updated_by"] = request_user.id
+        user_profile = models.UserProfile.objects.create(**validated_data)
+        return user_profile
+
+    def update(self, instance, validated_data):
+        """updates a user object in DB"""
+        request_user = validated_data.pop("request_user")
+        instance.user = validated_data.get("user", instance.user)
+        instance.full_name = validated_data.get("full_name", instance.full_name)
+        instance.display_name = validated_data.get("display_name", instance.display_name)
+        instance.phone = validated_data.get("phone", instance.phone)
+        instance.date_of_birth = validated_data.get("date_of_birth", instance.date_of_birth)
+        instance.joined_date = validated_data.get("joined_date", instance.joined_date)
+        instance.gender = validated_data.get("gender", instance.gender)
+        instance.updated_on = validated_data["updated_on"]
+        instance.updated_by = request_user.id
+        instance.save()
+        return instance
+
+
+class UserProfileReadOnlySerializer(serializers.ModelSerializer):
+    """serializes user profile data"""
+    class Meta:
+        model = models.UserProfile
+        fields = ("full_name", "display_name", "phone", "date_of_birth",
+                  "joined_date", "gender", "updated_by", "updated_on")

@@ -2,11 +2,12 @@ from django.shortcuts import get_object_or_404
 from django.contrib.auth import get_user_model
 from django.db.models import Q
 
-from rest_framework import generics, status
+from rest_framework import generics, status, mixins
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
-from account.serializers import UserSerializer, BusinessSerializer
+from account.serializers import UserSerializer, BusinessSerializer, UserProfileSerializer, \
+    UserProfileReadOnlySerializer
 from helpers import functions as helpers
 from account import models, permissions
 from account import custom_functions as c_func
@@ -47,7 +48,6 @@ class BusinessUserCreateView(generics.CreateAPIView):
     def create(self, request, *args, **kwargs):
         """creates a new user in db"""
         c_func.check_for_username_password(request)
-        now = helpers.get_current_time()
         business_data = request.data.get("business", None)
         if business_data is None:
             error = {
@@ -55,6 +55,7 @@ class BusinessUserCreateView(generics.CreateAPIView):
             }
             return Response(error, status=status.HTTP_400_BAD_REQUEST)
 
+        now = helpers.get_current_time()
         # business data serialization
         business_serializer = BusinessSerializer(data=business_data)
         business_serializer.is_valid(raise_exception=True)
@@ -147,6 +148,9 @@ class UserDetailView(generics.RetrieveUpdateDestroyAPIView):
         if user.business:
             business = models.Business.objects.filter(pk=user.business.id).first()
             response_data["business"] = BusinessSerializer(business).data
+        profile = models.UserProfile.objects.filter(user=kwargs["id"]).first()
+        if profile:
+            response_data["user"]["profile"] = UserProfileReadOnlySerializer(profile).data
         return Response(response_data, status=status.HTTP_200_OK)
 
     def update(self, request, *args, **kwargs):
@@ -214,4 +218,78 @@ class BusinessDetailView(generics.RetrieveUpdateDestroyAPIView):
         self.check_object_permissions(request, business)
         business.delete()
         return Response(None, status=status.HTTP_204_NO_CONTENT)
+
+
+class UserProfileDetailView(generics.RetrieveUpdateAPIView):
+    """retrieves and updates user profile data"""
+    serializer_class = UserProfileSerializer
+    queryset = models.UserProfile.objects.all()
+    permission_classes = (IsAuthenticated, permissions.IsBusinessAdminOrSuperuser,)
+
+    def retrieve(self, request, *args, **kwargs):
+        """returns user profile data with matching user id"""
+        user = get_user_model().objects.filter(id=kwargs["id"]).first()
+        if not user:
+            error = {
+                "message": "User not found"
+            }
+            return Response(error, status=status.HTTP_400_BAD_REQUEST)
+
+        if user.id == request.user.id or request.user.is_superuser or \
+            (request.user.user_role == "business_admin" and
+            request.user.business and user.business and
+            request.user.business.id == user.business.id):
+            queryset = self.get_queryset()
+            user_profile = queryset.filter(user=kwargs["id"]).first()
+            response_data = UserSerializer(user).data
+            if user_profile:
+                serializer = self.get_serializer(user_profile)
+                response_data["profile"] = serializer.data
+            return Response(response_data, status=status.HTTP_200_OK)
+        else:
+            error = {
+                "message": "Unauthorized request"
+            }
+            return Response(error, status=status.HTTP_400_BAD_REQUEST)
+
+    def update(self, request, *args, **kwargs):
+        """updates a user profile"""
+        user = get_user_model().objects.filter(id=kwargs["id"]).first()
+        if not user:
+            error = {
+                "message": "User not found"
+            }
+            return Response(error, status=status.HTTP_400_BAD_REQUEST)
+        if user.id == request.user.id or request.user.is_superuser or \
+            (request.user.user_role == "business_admin" and
+             request.user.business and user.business and
+             request.user.business.id == user.business.id):
+            queryset = self.get_queryset()
+            user_profile = queryset.filter(user=kwargs["id"]).first()
+            global serializer
+            response_data = UserSerializer(user).data
+            if user_profile:
+                serializer = self.get_serializer(user_profile, data=request.data, partial=True)
+                serializer.is_valid(raise_exception=True)
+                serializer.save(
+                    request_user=request.user,
+                    updated_on=helpers.get_current_time()
+                )
+            else:
+                request_data = request.data.copy()
+                request_data["user"] = user.id
+                serializer = self.get_serializer(data=request_data)
+                serializer.is_valid(raise_exception=True)
+                serializer.save(
+                    request_user=request.user,
+                    created_on=helpers.get_current_time(),
+                    updated_on=helpers.get_current_time(),
+                )
+            response_data["profile"] = serializer.data
+            return Response(response_data, status=status.HTTP_200_OK)
+        else:
+            error = {
+                "message": "Unauthorized request"
+            }
+            return Response(error, status=status.HTTP_400_BAD_REQUEST)
 

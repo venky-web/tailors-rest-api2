@@ -62,6 +62,7 @@ REST_FRAMEWORK = {
 }
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -155,7 +156,7 @@ STATIC_ROOT = getenv("STATIC_ROOT", "resources/uploads/static/")
 MEDIA_ROOT = getenv("MEDIA_ROOT", "resources/uploads/media/")
 
 STATICFILES_DIRS = (
-    getenv("STATICFILES_DIRS", '/static'),
+    getenv("STATICFILES_DIRS", 'static'),
 )
 
 # Default primary key field type
@@ -166,6 +167,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 AUTH_USER_MODEL = 'account.User'
 
 CORS_ALLOW_CREDENTIALS = True
+CORS_ORIGIN_ALLOW_ALL = True
 
 db_from_env = dj_database_url.config(conn_max_age=500)
 DATABASES['default'].update(db_from_env)
