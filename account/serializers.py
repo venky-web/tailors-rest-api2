@@ -78,7 +78,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.UserProfile
         fields = ("user", "full_name", "display_name", "phone", "date_of_birth",
-                  "joined_date", "gender")
+                  "joined_date", "gender", "marital_status")
 
     def create(self, validated_data):
         """Creates a new user with validated data"""
@@ -100,6 +100,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
         instance.date_of_birth = validated_data.get("date_of_birth", instance.date_of_birth)
         instance.joined_date = validated_data.get("joined_date", instance.joined_date)
         instance.gender = validated_data.get("gender", instance.gender)
+        instance.marital_status = validated_data.get("marital_status", instance.marital_status)
         instance.updated_on = validated_data["updated_on"]
         instance.updated_by = request_user.id
         instance.save()
@@ -111,4 +112,4 @@ class UserProfileReadOnlySerializer(serializers.ModelSerializer):
     class Meta:
         model = models.UserProfile
         fields = ("full_name", "display_name", "phone", "date_of_birth",
-                  "joined_date", "gender", "updated_by", "updated_on")
+                  "joined_date", "gender", "marital_status", "updated_by", "updated_on")

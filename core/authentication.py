@@ -5,11 +5,18 @@ from django.contrib.auth import get_user_model
 import jwt
 from rest_framework.authentication import BaseAuthentication
 from rest_framework.exceptions import AuthenticationFailed
+from rest_framework import status
+from rest_framework.exceptions import APIException
+
+class TokenExpired(APIException):
+    status_code = status.HTTP_401_UNAUTHORIZED
+    default_detail = 'Token is expired'
+    default_code = 'TOKEN_EXPIRED'
 
 
 def generate_access_token(user):
     """generates access token for the provided user"""
-    expire_time = datetime.utcnow() + timedelta(days=0, minutes=30)
+    expire_time = datetime.utcnow() + timedelta(days=0, hours=6)
     utc_time = datetime.utcnow()
     access_token_payload = {
         "user_id": user["id"],
@@ -51,7 +58,11 @@ class JWTAuthentication(BaseAuthentication):
             raise AuthenticationFailed("Access token is not provided")
 
         if jwt_payload["expire_time"] <= datetime.utcnow().timestamp() * 1000:
-            raise AuthenticationFailed("Access token is expired")
+            error = {
+                "detail": "Token is expired",
+                "code": "TOKEN_EXPIRED"
+            }
+            raise TokenExpired(error)
 
         user = get_user_model().objects.filter(pk=jwt_payload["user_id"]).first()
         if not user:

@@ -108,10 +108,11 @@ class UserProfile(CustomBaseClass):
                                 related_name="profile")
     full_name = models.CharField(_("Full name"), max_length=255, default="")
     display_name = models.CharField(_("Display name"), max_length=128, default="")
-    phone = models.IntegerField(null=True, blank=True)
+    phone = models.CharField(max_length=15, null=True, blank=True)
     date_of_birth = models.DateField(null=True, blank=True)
     joined_date = models.DateField(null=True, blank=True)
     gender = models.CharField(max_length=10, choices=GENDERS, default="female")
+    marital_status = models.CharField(max_length=32, default="single")
 
     class Meta:
         db_table = "t_user_profile"
