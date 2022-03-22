@@ -71,12 +71,12 @@ class BusinessUserCreateView(generics.CreateAPIView):
             user_role="business_admin"
         )
         business_instance = c_func.update_business_staff_count(business.id)
-        response = Response()
         user = serializer.data
-        response.data = {
-            "user": user,
-            "business": BusinessSerializer(business_instance).data,
+        response_data = {
+            "user": user
         }
+        response_data["user"]["business"] = BusinessSerializer(business_instance).data
+        response = Response(data=response_data)
         return c_func.add_tokens(response, user)
 
 
@@ -89,7 +89,7 @@ class BusinessStaffUserView(generics.ListCreateAPIView):
     def get_queryset(self):
         """returns queryset of users"""
         if self.request.user.is_superuser:
-            return get_user_model().objects.filter(~Q(id=self.request.user.id))
+            return get_user_model().objects.all()
 
         return get_user_model().objects.filter(Q(business=self.request.user.business.id),
                                                ~Q(id=self.request.user.id))
@@ -110,7 +110,7 @@ class BusinessStaffUserView(generics.ListCreateAPIView):
         """creates a new user in db"""
         business = None
         detail = {
-            "message": "Business id is missing"
+            "message": "Business details are missing"
         }
         if request.user.is_superuser:
             business_id = request.data["business"]
@@ -154,15 +154,7 @@ class UserDetailView(generics.RetrieveUpdateDestroyAPIView):
         user = get_object_or_404(queryset, pk=kwargs["id"])
         self.check_object_permissions(request, user)
         serializer = self.get_serializer(user)
-        response_data = {
-            "user": serializer.data
-        }
-        if user.business:
-            business = models.Business.objects.filter(pk=user.business.id).first()
-            response_data["business"] = BusinessSerializer(business).data
-        profile = models.UserProfile.objects.filter(user=kwargs["id"]).first()
-        if profile:
-            response_data["user"]["profile"] = UserProfileReadOnlySerializer(profile).data
+        response_data = c_func.get_user_profile_and_business_data(serializer.data)
         return Response(response_data, status=status.HTTP_200_OK)
 
     def update(self, request, *args, **kwargs):
@@ -176,12 +168,7 @@ class UserDetailView(generics.RetrieveUpdateDestroyAPIView):
             request_user=request.user,
             updated_on=helpers.get_current_time()
         )
-        response_data = {
-            "user": serializer.data
-        }
-        if user.business:
-            business = models.Business.objects.filter(pk=user.business.id).first()
-            response_data["business"] = BusinessSerializer(business).data
+        response_data = c_func.get_user_profile_and_business_data(serializer.data)
         return Response(response_data, status=status.HTTP_200_OK)
 
     def destroy(self, request, *args, **kwargs):
@@ -211,9 +198,7 @@ class BusinessDetailView(generics.RetrieveUpdateDestroyAPIView):
     def update(self, request, *args, **kwargs):
         """updates a business obj with valid id"""
         queryset = models.Business.objects.all()
-        print(queryset)
         business = get_object_or_404(queryset, pk=kwargs["id"])
-        print(business)
         self.check_object_permissions(request, business)
         serializer = self.get_serializer(business, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
@@ -251,12 +236,7 @@ class UserProfileDetailView(generics.RetrieveUpdateAPIView):
             (request.user.user_role == "business_admin" and
             request.user.business and user.business and
             request.user.business.id == user.business.id):
-            queryset = self.get_queryset()
-            user_profile = queryset.filter(user=kwargs["id"]).first()
-            response_data = UserSerializer(user).data
-            if user_profile:
-                serializer = self.get_serializer(user_profile)
-                response_data["profile"] = serializer.data
+            response_data = c_func.get_user_profile_and_business_data(UserSerializer(user).data)
             return Response(response_data, status=status.HTTP_200_OK)
         else:
             error = {
@@ -278,26 +258,8 @@ class UserProfileDetailView(generics.RetrieveUpdateAPIView):
              request.user.business.id == user.business.id):
             queryset = self.get_queryset()
             user_profile = queryset.filter(user=kwargs["id"]).first()
-            global serializer
-            response_data = UserSerializer(user).data
-            if user_profile:
-                serializer = self.get_serializer(user_profile, data=request.data, partial=True)
-                serializer.is_valid(raise_exception=True)
-                serializer.save(
-                    request_user=request.user,
-                    updated_on=helpers.get_current_time()
-                )
-            else:
-                request_data = request.data.copy()
-                request_data["user"] = user.id
-                serializer = self.get_serializer(data=request_data)
-                serializer.is_valid(raise_exception=True)
-                serializer.save(
-                    request_user=request.user,
-                    created_on=helpers.get_current_time(),
-                    updated_on=helpers.get_current_time(),
-                )
-            response_data["profile"] = serializer.data
+            c_func.save_user_profile(request, user, user_profile)
+            response_data =  c_func.get_user_profile_and_business_data(UserSerializer(user).data)
             return Response(response_data, status=status.HTTP_200_OK)
         else:
             error = {

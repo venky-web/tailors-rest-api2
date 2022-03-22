@@ -15,8 +15,8 @@ from account.serializers import UserSerializer
 from core.authentication import generate_access_token, generate_refresh_token
 from core.serializers import AuthTokenSerializer
 from account.permissions import IsOwner
-from account.models import Business
-from account.serializers import BusinessSerializer
+from account.models import Business, UserProfile
+from account.serializers import BusinessSerializer, UserProfileReadOnlySerializer
 
 
 @api_view(["POST"])
@@ -49,7 +49,11 @@ def login_view(request):
     if user.business:
         business = Business.objects.filter(id=user.business.id).first()
         business_data = BusinessSerializer(business).data
-        response.data["business"] = business_data
+        response.data["user"]["business"] = business_data
+
+    profile = UserProfile.objects.filter(user=user.id).first()
+    if profile:
+        response.data["user"]["profile"] = UserProfileReadOnlySerializer(profile).data
     return response
 
 

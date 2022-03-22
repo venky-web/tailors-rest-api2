@@ -4,8 +4,9 @@ from django.contrib.auth import get_user_model
 from rest_framework.response import Response
 from rest_framework.status import HTTP_400_BAD_REQUEST
 
-from account.models import Business
 from core.authentication import generate_access_token, generate_refresh_token
+from account import serializers, models
+from helpers import functions as helpers
 
 
 def update_business_staff_count(business_id, add_staff=1, operation="add"):
@@ -59,3 +60,46 @@ def add_tokens(response, user):
     response.set_cookie(key="refresh_token", value=refresh_token, httponly=True)
     response.data["access_token"] =  access_token
     return response
+
+
+def save_user_profile(request, user, profile=None):
+    """saves user profile
+        Args: request, user, profile (default=None)
+    """
+    global serializer
+    if profile is not None:
+        serializer = serializers.UserProfileSerializer(
+            profile,
+            data=request.data,
+            partial=True
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save(
+            request_user=request.user,
+            updated_on=helpers.get_current_time()
+        )
+    else:
+        request_data = request.data.copy()
+        request_data["user"] = user.id
+        serializer = serializers.UserProfileSerializer(data=request_data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save(
+            request_user=request.user,
+            created_on=helpers.get_current_time(),
+            updated_on=helpers.get_current_time(),
+        )
+    return serializer.data
+
+
+def get_user_profile_and_business_data(user):
+    """returns user profile and business data if exists
+        Args: user data
+    """
+    if user["user_role"] == "business_admin" or user["user_role"] == "business_staff":
+        user_obj = models.User.objects.filter(pk=user["id"]).first()
+        business = models.Business.objects.filter(pk=user_obj.business.id).first()
+        user["business"] = serializers.BusinessSerializer(business).data
+    profile = models.UserProfile.objects.filter(user=user["id"]).first()
+    if profile:
+        user["profile"] = serializers.UserProfileReadOnlySerializer(profile).data
+    return user
