@@ -44,6 +44,7 @@ def login_view(request):
     response.set_cookie(key="refresh_token", value=refresh_token, httponly=True)
     response.data = {
         "access_token": access_token,
+        "refresh_token": refresh_token,
         "user": serialized_user,
     }
     if user.business:
@@ -57,13 +58,13 @@ def login_view(request):
     return response
 
 
-@api_view(["GET"])
+@api_view(["POST"])
 @authentication_classes([])
 @permission_classes([AllowAny])
-@csrf_protect
+# @csrf_protect
 def get_access_token(request):
     """returns access token for valid refresh token"""
-    refresh_token = request.COOKIES.get("refresh_token")
+    refresh_token = request.data.get("refresh_token", None)
     if not refresh_token:
         raise AuthenticationFailed("Authentication details are not provided")
 

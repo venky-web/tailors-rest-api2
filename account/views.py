@@ -97,13 +97,7 @@ class BusinessStaffUserView(generics.ListCreateAPIView):
     def list(self, request, *args, **kwargs):
         """returns list of users with matching business id"""
         queryset = self.get_queryset()
-        response_data = []
-        for user in queryset.iterator():
-            user_data = UserSerializer(user).data.copy()
-            user_profile = models.UserProfile.objects.filter(user=user.id).first()
-            if user_profile:
-                user_data["profile"] = UserProfileReadOnlySerializer(user_profile).data.copy()
-            response_data.append(user_data)
+        response_data = c_func.get_users(queryset)
         return Response(response_data, status=status.HTTP_200_OK)
 
     def create(self, request, *args, **kwargs):
@@ -136,7 +130,8 @@ class BusinessStaffUserView(generics.ListCreateAPIView):
             user_role="business_staff"
         )
         c_func.update_business_staff_count(business.id)
-        return Response(serializer.data)
+        response_data = c_func.get_users(self.get_queryset())
+        return Response(response_data, status=status.HTTP_200_OK)
 
 
 class UserDetailView(generics.RetrieveUpdateDestroyAPIView):

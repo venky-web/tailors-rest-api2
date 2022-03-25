@@ -13,7 +13,7 @@ def update_business_staff_count(business_id, add_staff=1, operation="add"):
     """updates staff count of business
         Args: business_id, add_staff=1, operation="add"
     """
-    business_instance = get_object_or_404(Business, pk=business_id)
+    business_instance = get_object_or_404(models.Business, pk=business_id)
     if operation == "add":
         business_instance.staff_count += add_staff
     elif operation == "delete":
@@ -53,12 +53,29 @@ def check_for_username_password(request):
             return Response(error, status=HTTP_400_BAD_REQUEST)
 
 
+def get_users(queryset):
+    """returns list of users"""
+    response_data = []
+    for user in queryset.iterator():
+        user_data = serializers.UserSerializer(user).data.copy()
+        user_profile = models.UserProfile.objects.filter(user=user.id).first()
+        if user_profile:
+            user_data["profile"] = serializers.UserProfileReadOnlySerializer(user_profile).data.copy()
+        if user.user_role == "business_admin" or user.user_role == "business_staff":
+            business_data = models.Business.objects.filter(pk=user.business.id).first()
+            if business_data:
+                user_data["business"] = serializers.BusinessSerializer(business_data).data.copy()
+        response_data.append(user_data)
+    return response_data
+
+
 def add_tokens(response, user):
     """adds refresh and access tokens to the response"""
     access_token = generate_access_token(user)
     refresh_token = generate_refresh_token(user)
     response.set_cookie(key="refresh_token", value=refresh_token, httponly=True)
     response.data["access_token"] =  access_token
+    response.data["refresh_token"] = refresh_token,
     return response
 
 
