@@ -137,3 +137,20 @@ class UserProfile(CustomBaseClass):
         """returns display name of the user"""
         return f"{self.display_name}"
 
+
+class UserBusinessRelation(models.Model):
+    """model to manage user join requests for business"""
+    user_id = models.CharField(max_length=100)
+    business_id = models.CharField(max_length=100)
+    request_status = models.CharField(max_length=255, default="pending")
+    request_date = models.DateTimeField()
+    request_expiry_date = models.DateTimeField()
+    updated_date = models.DateTimeField()
+    comments = models.TextField(null=True, blank=True)
+
+    class Meta:
+        db_table = "t_user_business_relation"
+        ordering = ("-request_date",)
+
+    def __str__(self):
+        return f"{self.id}"

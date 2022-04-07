@@ -10,4 +10,5 @@ urlpatterns = [
     path("profile/<int:id>/", views.UserProfileDetailView.as_view(), name="user-profile-detail"),
     path("business/create/", views.BusinessUserCreateView.as_view(), name="business-user-create"),
     path("business/<int:id>/", views.BusinessDetailView.as_view(), name="business-detail"),
+    path("business/customers/", views.customers_list, name="business-customers-list"),
 ]

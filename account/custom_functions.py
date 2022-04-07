@@ -1,8 +1,10 @@
 from django.shortcuts import get_object_or_404
 from django.contrib.auth import get_user_model
+from datetime import datetime, timedelta
 
 from rest_framework.response import Response
 from rest_framework.status import HTTP_400_BAD_REQUEST
+from rest_framework.exceptions import NotFound
 
 from core.authentication import generate_access_token, generate_refresh_token
 from account import serializers, models
@@ -34,7 +36,7 @@ def check_for_username_password(request):
             return Response(error, status=HTTP_400_BAD_REQUEST)
         elif user:
             error = {
-                "message": "User with provided username already exists"
+                "message": "Username already exists"
             }
             return Response(error, status=HTTP_400_BAD_REQUEST)
     else:
@@ -120,3 +122,33 @@ def get_user_profile_and_business_data(user):
     if profile:
         user["profile"] = serializers.UserProfileReadOnlySerializer(profile).data
     return user
+
+
+def add_user_business_relation(business_id, user_id, comments, status="Pending", expires_in=7):
+    """creates a relation between user and business
+        Args: user_id, business_id, status='Pending', expires_in=7 (Days)
+    """
+    user = get_user_model().objects.filter(pk=user_id).first()
+    if not user:
+        error = {
+            "message": "User not found"
+        }
+        raise NotFound(detail=error, code=404)
+    business = models.Business.objects.filter(pk=business_id).first()
+    if not business:
+        error = {
+            "message": "Business not found"
+        }
+        raise NotFound(detail=error, code=404)
+
+    expires_in = datetime.utcnow() + timedelta(days=expires_in)
+    user_request = models.UserBusinessRelation.objects.create(
+        user_id=user.id,
+        business_id=business_id,
+        request_status=status,
+        request_date=helpers.get_current_time(),
+        updated_date=helpers.get_current_time(),
+        request_expiry_date=expires_in.isoformat(),
+        comments=comments
+    )
+    return user_request

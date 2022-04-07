@@ -1,6 +1,8 @@
+from django.contrib.auth import get_user_model
+
 from rest_framework.permissions import BasePermission, SAFE_METHODS
 
-from account.models import Business
+from account.models import Business, UserBusinessRelation
 
 
 class IsOwner(BasePermission):
@@ -65,3 +67,38 @@ class IsBusinessAdminOrSuperuser(BasePermission):
         return request.user.user_role == "business_admin" and \
                request.user.business and \
                request.user.business.id == obj.id
+
+
+class IsBusinessAdminOrStaff(BasePermission):
+    """checks whether user is business admin, staff or superuser"""
+    def has_permission(self, request, view):
+        """returns true if user has permission to the view"""
+        if request.user.is_superuser:
+            return True
+
+        return request.user.user_role == "business_admin" or request.user.user_role == "business_staff"
+
+
+class IsUpdateProfile(BasePermission):
+
+    def has_permission(self, request, view):
+        if request.user.is_superuser:
+            return True
+
+        if request.user.user_role == "business_admin" or request.user.user_role == "business_staff":
+            return True
+
+        return request.user == get_user_model().objects.filter(pk=view.kwargs['id']).first()
+
+    def has_object_permission(self, request, view, obj):
+        """returns true if user has permission to view/edit/delete the obj"""
+        if request.user.is_superuser:
+            return True
+
+        if (request.user.user_role == "business_admin" or request.user.user_role == "business_staff") \
+            and request.user.id != obj.id:
+            user_business_relation = UserBusinessRelation.objects.filter(business_id=request.user.business.id,
+                                                                         user_id=obj.id).first()
+            return user_business_relation and user_business_relation.request_status == "Approved"
+
+        return request.user.id == obj.id

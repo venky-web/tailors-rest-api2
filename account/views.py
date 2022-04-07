@@ -5,6 +5,7 @@ from django.db.models import Q
 from rest_framework import generics, status, mixins
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.decorators import api_view, permission_classes
 
 from account.serializers import UserSerializer, BusinessSerializer, UserProfileSerializer, \
     UserProfileReadOnlySerializer
@@ -31,6 +32,9 @@ class UserCreateView(generics.CreateAPIView):
             updated_on=now,
         )
         user = serializer.data
+        business_id = request.query_params.get("bid", None)
+        if business_id is not None:
+            c_func.add_user_business_relation(business_id, user["id"], comments="Auto approved", status="Approved")
         response = Response()
         response.data = {
             "user": user,
@@ -137,7 +141,7 @@ class BusinessStaffUserView(generics.ListCreateAPIView):
 class UserDetailView(generics.RetrieveUpdateDestroyAPIView):
     """user detail view to retrieve, update and destroy"""
     serializer_class = UserSerializer
-    permission_classes = (IsAuthenticated, permissions.IsOwner)
+    permission_classes = (IsAuthenticated, permissions.IsUpdateProfile)
 
     def get_queryset(self):
         """returns queryset of active users"""
@@ -216,7 +220,7 @@ class UserProfileDetailView(generics.RetrieveUpdateAPIView):
     """retrieves and updates user profile data"""
     serializer_class = UserProfileSerializer
     queryset = models.UserProfile.objects.all()
-    permission_classes = (IsAuthenticated, permissions.IsBusinessAdminOrSuperuser,)
+    permission_classes = (IsAuthenticated, permissions.IsUpdateProfile,)
 
     def retrieve(self, request, *args, **kwargs):
         """returns user profile data with matching user id"""
@@ -226,7 +230,6 @@ class UserProfileDetailView(generics.RetrieveUpdateAPIView):
                 "message": "User not found"
             }
             return Response(error, status=status.HTTP_400_BAD_REQUEST)
-
         if user.id == request.user.id or request.user.is_superuser or \
             (request.user.user_role == "business_admin" and
             request.user.business and user.business and
@@ -247,18 +250,28 @@ class UserProfileDetailView(generics.RetrieveUpdateAPIView):
                 "message": "User not found"
             }
             return Response(error, status=status.HTTP_400_BAD_REQUEST)
-        if user.id == request.user.id or request.user.is_superuser or \
-            (request.user.user_role == "business_admin" and
-             request.user.business and user.business and
-             request.user.business.id == user.business.id):
-            queryset = self.get_queryset()
-            user_profile = queryset.filter(user=kwargs["id"]).first()
-            c_func.save_user_profile(request, user, user_profile)
-            response_data =  c_func.get_user_profile_and_business_data(UserSerializer(user).data)
-            return Response(response_data, status=status.HTTP_200_OK)
-        else:
-            error = {
-                "message": "Unauthorized request"
-            }
-            return Response(error, status=status.HTTP_400_BAD_REQUEST)
+        self.check_object_permissions(request, user)
+        queryset = self.get_queryset()
+        user_profile = queryset.filter(user=kwargs["id"]).first()
+        c_func.save_user_profile(request, user, user_profile)
+        response_data =  c_func.get_user_profile_and_business_data(UserSerializer(user).data)
+        return Response(response_data, status=status.HTTP_200_OK)
 
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated, permissions.IsBusinessAdminOrStaff])
+def customers_list(request):
+    """view to return list of customers tagged to business"""
+
+    user_business_relations = models.UserBusinessRelation.objects.filter(business_id=request.user.business.id)
+    users = []
+    for relation in user_business_relations:
+        user = get_user_model().objects.filter(id=relation.user_id).first()
+        if user:
+            serialized_data = UserSerializer(user).data
+            profile = models.UserProfile.objects.filter(user=relation.user_id).first()
+            if profile:
+                serialized_data["profile"] = UserProfileReadOnlySerializer(profile).data
+            users.append(serialized_data)
+    response = Response(data=users, status=status.HTTP_200_OK)
+    return response

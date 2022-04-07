@@ -154,7 +154,7 @@ def activate_staff(request):
         }
         return Response(detail, status=status.HTTP_400_BAD_REQUEST)
 
-    if (request.user.user_role == "business_admin" and \
+    if (request.user.user_role == "business_admin" and
             request.user.business == user.business) or request.user.is_superuser:
         user.is_active = True
         user.save()
@@ -167,4 +167,3 @@ def activate_staff(request):
         "message": "Unauthorized to activate staff user."
     }
     return Response(detail, status=status.HTTP_401_UNAUTHORIZED)
-

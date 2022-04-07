@@ -28,5 +28,6 @@ class UserAdmin(BaseUserAdmin):
 
 admin.site.register(models.User, UserAdmin)
 admin.site.register(models.UserProfile)
+admin.site.register(models.UserBusinessRelation)
 admin.site.register(models.Business)
 admin.site.unregister(Group)
