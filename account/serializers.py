@@ -113,3 +113,11 @@ class UserProfileReadOnlySerializer(serializers.ModelSerializer):
         model = models.UserProfile
         fields = ("full_name", "display_name", "phone", "date_of_birth",
                   "joined_date", "gender", "marital_status", "updated_by", "updated_on")
+
+
+class CustomerProfileSerializer(serializers.ModelSerializer):
+    """serializes user profile data"""
+    class Meta:
+        model = models.UserProfile
+        fields = ("full_name", "display_name", "phone", "date_of_birth",
+                  "gender", "marital_status")

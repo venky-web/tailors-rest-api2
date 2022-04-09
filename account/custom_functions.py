@@ -85,7 +85,7 @@ def save_user_profile(request, user, profile=None):
     """saves user profile
         Args: request, user, profile (default=None)
     """
-    global serializer
+    # global serializer
     if profile is not None:
         serializer = serializers.UserProfileSerializer(
             profile,
@@ -121,6 +121,27 @@ def get_user_profile_and_business_data(user):
     profile = models.UserProfile.objects.filter(user=user["id"]).first()
     if profile:
         user["profile"] = serializers.UserProfileReadOnlySerializer(profile).data
+    return user
+
+
+def get_user_data_for_business(request, user):
+    """returns user profile and business data if exists
+        Args: request, user
+    """
+    if user["user_role"] == "business_admin" or user["user_role"] == "business_staff":
+        user_obj = models.User.objects.filter(pk=user["id"]).first()
+        business = models.Business.objects.filter(pk=user_obj.business.id).first()
+        user["business"] = serializers.BusinessSerializer(business).data
+    profile = models.UserProfile.objects.filter(user=user["id"]).first()
+    if profile:
+        serialized_profile = serializers.CustomerProfileSerializer(profile).data
+        relation = models.UserBusinessRelation.objects.filter(user_id=user["id"],
+                                                              business_id=request.user.business.id).first()
+        if relation and relation.request_status != "Approved":
+            serialized_profile["phone"] = "xxx"
+            serialized_profile["date_of_birth"] = None
+            serialized_profile["marital_status"] = "xxx"
+        user["profile"] = serialized_profile
     return user
 
 

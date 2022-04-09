@@ -1,29 +1,62 @@
-from django.contrib.auth import get_user_model
-
 from rest_framework.permissions import BasePermission, SAFE_METHODS
 
 from account.models import Business, UserBusinessRelation
 
 
 class IsOwner(BasePermission):
-    """checks if user has permission for obj"""
+    """checks if user has permission to the obj"""
     def has_object_permission(self, request, view, obj):
         """returns True if user has permission for the obj"""
         if request.user.is_superuser:
             return True
-
-        if request.user.user_role == "business_admin" and \
-            request.user.business == obj.business:
-            return True
-
         return obj.id == request.user.id
 
-    def has_permission(self, request, view):
-        """returns True if user has permission for the view"""
+
+class IsOwnerOrReadOnly(BasePermission):
+    """checks if user has write access or only read access"""
+
+    def has_object_permission(self, request, view, obj):
+        """returns True if user has write access"""
         if request.user.is_superuser:
             return True
 
-        if request.user.user_role == "business_admin" and request.user.business:
+        if request.method in SAFE_METHODS:
+            return True
+
+        return request.user.id == obj.id
+
+
+class IsBusinessAdmin(BasePermission):
+    """checks if user is a business admin"""
+    def has_permission(self, request, view):
+        """returns True if user is business admin"""
+        return request.user.is_superuser or request.user.user_role == "business_admin"
+
+    def has_object_permission(self, request, view, obj):
+        """returns True if user is business admin"""
+        if request.user.is_superuser:
+            return True
+
+        return request.user.user_role == "business_admin"
+
+
+class IsBusinessAdminOrStaff(BasePermission):
+    """checks if user is a business admin or business staff"""
+    def has_permission(self, request, view):
+        """returns True if user is a business admin or staff"""
+        if request.user.is_superuser:
+            return True
+
+        return request.user.user_role == "business_admin" or \
+               request.user.user_role == "business_staff"
+
+    def has_object_permission(self, request, view, obj):
+        """returns True if user is a business admin or staff or owner"""
+        if request.user.is_superuser:
+            return True
+
+        if request.user.user_role == "business_admin" or \
+            request.user.user_role == "business_staff":
             return True
 
         return False
@@ -50,55 +83,91 @@ class MaxStaffCount(BasePermission):
         return False
 
 
-class IsBusinessAdminOrSuperuser(BasePermission):
-    """checks whether user is business admin or superuser"""
-    def has_permission(self, request, view):
-        """returns true if user has permission to the view"""
+class IsOwnBusiness(BasePermission):
+    """checks if user belongs to same business"""
+
+    def has_object_permission(self, request, view, obj):
+        """returns True if user is a business admin or staff or owner"""
         if request.user.is_superuser:
             return True
 
-        return request.user.user_role == "business_admin"
+        if not request.user.business or not obj.business:
+            return False
 
+        return request.user.business.id == obj.business.id
+
+
+class ReadOnlyAccessToStaff(BasePermission):
+    """checks if user is staff and request method is safe """
+    def has_permission(self, request, view):
+        """returns True if user is staff and request method is in safe methods list"""
+        if request.user.is_superuser:
+            return True
+
+        if request.user.user_role == "business_admin":
+            return True
+
+        return request.user.user_role == "business_staff" and \
+               request.method in SAFE_METHODS
+
+    def has_object_permission(self, request, view, obj):
+        """returns True if user is staff and request method is in safe methods list"""
+        if request.user.is_superuser:
+            return True
+
+        if request.user.user_role == "business_admin":
+            return True
+
+        return request.user.user_role == "business_staff" and \
+               request.method in SAFE_METHODS
+
+
+class IsOwnerOrBusinessAdmin(BasePermission):
+    """checks if user is owner of object or business admin"""
+    def has_object_permission(self, request, view, obj):
+        """returns True if user is owner of obj or business admin"""
+        if request.user.is_superuser:
+            return True
+
+        if request.user.user_role == "business_admin":
+            return True
+
+        return request.user.id == obj.id
+
+
+class BusinessAdminOrStaffWithOwnBusiness(BasePermission):
+    """checks whether user is business admin or superuser"""
     def has_object_permission(self, request, view, obj):
         """returns true if user has permission to view/edit/delete the obj"""
         if request.user.is_superuser:
             return True
 
-        return request.user.user_role == "business_admin" and \
+        return (request.user.user_role == "business_admin" or request.user.user_role == "business_staff") and \
                request.user.business and \
                request.user.business.id == obj.id
 
 
-class IsBusinessAdminOrStaff(BasePermission):
-    """checks whether user is business admin, staff or superuser"""
+class IsBusinessAdminOrStaffWithRelation(BasePermission):
+    """checks if user is a business admin or business staff"""
     def has_permission(self, request, view):
-        """returns true if user has permission to the view"""
+        """returns True if user is a business admin or staff"""
         if request.user.is_superuser:
             return True
 
-        return request.user.user_role == "business_admin" or request.user.user_role == "business_staff"
-
-
-class IsUpdateProfile(BasePermission):
-
-    def has_permission(self, request, view):
-        if request.user.is_superuser:
-            return True
-
-        if request.user.user_role == "business_admin" or request.user.user_role == "business_staff":
-            return True
-
-        return request.user == get_user_model().objects.filter(pk=view.kwargs['id']).first()
+        return request.user.user_role == "business_admin" or \
+               request.user.user_role == "business_staff"
 
     def has_object_permission(self, request, view, obj):
-        """returns true if user has permission to view/edit/delete the obj"""
+        """returns True if user is a business admin or staff or owner"""
         if request.user.is_superuser:
             return True
 
-        if (request.user.user_role == "business_admin" or request.user.user_role == "business_staff") \
-            and request.user.id != obj.id:
-            user_business_relation = UserBusinessRelation.objects.filter(business_id=request.user.business.id,
-                                                                         user_id=obj.id).first()
-            return user_business_relation and user_business_relation.request_status == "Approved"
+        if request.user.user_role == "business_admin" or \
+            request.user.user_role == "business_staff":
 
-        return request.user.id == obj.id
+            relation = UserBusinessRelation.objects.filter(user_id=obj.id,
+                                                           business_id=request.user.business.id).first()
+
+            return relation and relation.request_status == "Approved"
+
+        return False
