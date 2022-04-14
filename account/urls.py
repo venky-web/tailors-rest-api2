@@ -16,4 +16,5 @@ urlpatterns = [
          name="staff-user-detail"),
     path("business/staff/<int:staff_id>/profile/", views.BusinessStaffProfileDetailView.as_view(),
          name="staff-user-profile-detail"),
+    path("business/requests/", views.relation_requests, name="business-user-relation-request"),
 ]

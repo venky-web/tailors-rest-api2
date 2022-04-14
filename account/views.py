@@ -1,6 +1,7 @@
 from django.shortcuts import get_object_or_404
 from django.contrib.auth import get_user_model
 from django.db.models import Q
+from datetime import date, datetime
 
 from rest_framework import generics, status
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -350,3 +351,45 @@ def customers_list(request):
             users.append(serialized_data)
     response = Response(data=users, status=status.HTTP_200_OK)
     return response
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated, permissions.IsBusinessAdminOrStaff])
+def relation_requests(request):
+    """view to return list of customers tagged to business"""
+
+    user_business_relations = models.UserBusinessRelation.objects.filter(Q(business_id=request.user.business.id),
+                                                                         ~Q(request_status="Approved"))
+    response_data = {
+        "pending": [],
+        "declined": [],
+        "expired": []
+    }
+    for relation in user_business_relations:
+        user = get_user_model().objects.filter(id=relation.user_id).first()
+        if not user:
+            continue
+        if  relation.request_expiry_date.date() < datetime.today().date():
+            response_data["expired"].append({
+                "username": user.username,
+                "request_date": relation.request_date,
+                "expiry_date": relation.request_expiry_date,
+                "comments": relation.comments
+            })
+        elif relation.request_status == "Declined":
+            response_data["declined"].append({
+                "username": user.username,
+                "request_date": relation.request_date,
+                "expiry_date": relation.request_expiry_date,
+                "comments": relation.comments
+            })
+        elif relation.request_status == "Pending":
+            response_data["pending"].append({
+                "username": user.username,
+                "request_date": relation.request_date,
+                "expiry_date": relation.request_expiry_date,
+                "comments": relation.comments
+            })
+    response = Response(data=response_data, status=status.HTTP_200_OK)
+    return response
+
