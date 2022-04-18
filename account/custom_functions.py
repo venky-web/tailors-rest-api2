@@ -145,9 +145,9 @@ def get_user_data_for_business(request, user):
     return user
 
 
-def add_user_business_relation(business_id, user_id, comments, status="Pending", expires_in=7):
+def add_user_business_relation(request, business_id, user_id, comments, status="Pending", expires_in=7):
     """creates a relation between user and business
-        Args: user_id, business_id, status='Pending', expires_in=7 (Days)
+        Args:request, user_id, business_id, status='Pending', expires_in=7 (Days)
     """
     user = get_user_model().objects.filter(pk=user_id).first()
     if not user:
@@ -168,7 +168,8 @@ def add_user_business_relation(business_id, user_id, comments, status="Pending",
         business_id=business_id,
         request_status=status,
         request_date=helpers.get_current_time(),
-        updated_date=helpers.get_current_time(),
+        updated_on=helpers.get_current_time(),
+        updated_by=request.user.id,
         request_expiry_date=expires_in.isoformat(),
         comments=comments
     )

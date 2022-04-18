@@ -1,7 +1,7 @@
 from django.shortcuts import get_object_or_404
 from django.contrib.auth import get_user_model
 from django.db.models import Q
-from datetime import date, datetime
+from datetime import datetime
 
 from rest_framework import generics, status
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -33,7 +33,7 @@ class UserCreateView(generics.CreateAPIView):
         user = serializer.data
         business_id = request.query_params.get("bid", None)
         if business_id is not None:
-            c_func.add_user_business_relation(business_id, user["id"],
+            c_func.add_user_business_relation(request, business_id, user["id"],
                                               comments="Auto approved",
                                               status="Approved")
         response = Response()
@@ -330,7 +330,6 @@ class BusinessStaffProfileDetailView(generics.RetrieveUpdateAPIView):
 @permission_classes([IsAuthenticated, permissions.IsBusinessAdminOrStaff])
 def customers_list(request):
     """view to return list of customers tagged to business"""
-
     user_business_relations = models.UserBusinessRelation.objects.filter(business_id=request.user.business.id)
     users = []
     for relation in user_business_relations:
@@ -353,43 +352,161 @@ def customers_list(request):
     return response
 
 
-@api_view(["GET"])
+@api_view(["POST"])
 @permission_classes([IsAuthenticated, permissions.IsBusinessAdminOrStaff])
-def relation_requests(request):
-    """view to return list of customers tagged to business"""
+def search_user(request):
+    """view to return list of customers with matched search text or phone number"""
+    search_text = request.data.get("searchText")
+    phone_number = request.data.get("phone")
+    if (not search_text or len(search_text) == 0) and not phone_number:
+        return Response(None, status=status.HTTP_204_NO_CONTENT)
 
-    user_business_relations = models.UserBusinessRelation.objects.filter(Q(business_id=request.user.business.id),
-                                                                         ~Q(request_status="Approved"))
-    response_data = {
-        "pending": [],
-        "declined": [],
-        "expired": []
-    }
-    for relation in user_business_relations:
-        user = get_user_model().objects.filter(id=relation.user_id).first()
-        if not user:
+    if phone_number:
+        user_list = get_user_model().objects.filter(Q(profile__phone__icontains=phone_number),
+                                                    Q(user_role="normal_user"))
+    else:
+        user_list = get_user_model().objects.filter(Q(username__icontains=search_text) |
+                                                    Q(email__startswith=search_text) |
+                                                    Q(profile__full_name__icontains=search_text) |
+                                                    Q(profile__display_name__icontains=search_text),
+                                                    Q(user_role="normal_user"))
+    users = []
+    for user in user_list:
+        relation_request = models.UserBusinessRelation.objects.filter(Q(user_id=user.id),
+                                                                      Q(business_id=request.user.business.id),
+                                                                      Q(request_status__iexact="Pending")).first()
+        if relation_request:
             continue
-        if  relation.request_expiry_date.date() < datetime.today().date():
-            response_data["expired"].append({
-                "username": user.username,
-                "request_date": relation.request_date,
-                "expiry_date": relation.request_expiry_date,
-                "comments": relation.comments
-            })
-        elif relation.request_status == "Declined":
-            response_data["declined"].append({
-                "username": user.username,
-                "request_date": relation.request_date,
-                "expiry_date": relation.request_expiry_date,
-                "comments": relation.comments
-            })
-        elif relation.request_status == "Pending":
-            response_data["pending"].append({
-                "username": user.username,
-                "request_date": relation.request_date,
-                "expiry_date": relation.request_expiry_date,
-                "comments": relation.comments
-            })
-    response = Response(data=response_data, status=status.HTTP_200_OK)
-    return response
+        item = dict()
+        item["id"] = user.id
+        try:
+            if user.profile and user.profile.display_name:
+                item["name"] = user.profile.display_name
+            elif user.profile and user.profile.full_name:
+                item["name"] = user.profile.full_name
+            else:
+                item["name"] = user.username
+            if user.profile and user.profile.phone:
+                item["phone"] = user.profile.phone[:5] + "xxxxx"
+        except models.UserProfile.DoesNotExist:
+            item["name"] = user.username
+        users.append(item)
+    return Response(users)
 
+
+class RelationRequestView(generics.ListCreateAPIView):
+    """View to manage relation requests"""
+    serializer_class = serializers.RelationRequestSerializer
+    permission_classes = (IsAuthenticated,)
+
+    def get_queryset(self):
+        """returns queryset of relation requests"""
+        if self.request.user.user_role == "business_admin" or self.request.user.user_role == "business_staff":
+            return models.UserBusinessRelation.objects.filter(Q(business_id=self.request.user.business.id),
+                                                              ~Q(request_status__iexact="Approved"))
+        else:
+            return models.UserBusinessRelation.objects.filter(Q(user_id=self.request.user.id),
+                                                              ~Q(request_status__iexact="Approved"))
+
+    def list(self, request, *args, **kwargs):
+        """returns a list of relation requests which are not approved"""
+        queryset = self.get_queryset()
+        response_data = {
+            "pending": [],
+            "declined": [],
+            "expired": []
+        }
+        for relation in queryset:
+            user_role = request.user.user_role
+            if user_role == "business_admin" or user_role == "business_staff":
+                obj = get_user_model().objects.filter(id=relation.user_id).first()
+            else:
+                obj = models.Business.objects.filter(id=relation.business_id).first()
+            if not obj:
+                continue
+
+            relation_request = {
+                "id": relation.id,
+                "request_date": relation.request_date,
+                "expiry_date": relation.request_expiry_date,
+                "comments": relation.comments
+            }
+            if user_role == "business_admin" or user_role == "business_staff":
+                relation_request["name"] = obj.username
+            else:
+                relation_request["name"] = obj.name
+
+            if relation.request_expiry_date.date() < datetime.today().date():
+                response_data["expired"].append(relation_request)
+            elif relation.request_status.lower() == "declined":
+                response_data["declined"].append(relation_request)
+            elif relation.request_status.lower() == "pending":
+                response_data["pending"].append(relation_request)
+        return Response(data=response_data, status=status.HTTP_200_OK)
+
+    def create(self, request, *args, **kwargs):
+        """creates a new relation request or update existing once"""
+        if request.user.user_role == "normal_user":
+            detail = {
+                "detail": "You do not have permission to perform this action."
+            }
+            return Response(detail, status=status.HTTP_401_UNAUTHORIZED)
+
+        request_data = request.data.copy()
+        existing_relation = models.UserBusinessRelation.objects.filter(Q(request_status__iexact="pending") |
+                                                                       Q(request_status__iexact="blocked"),
+                                                                       Q(business_id=request.user.business.id),
+                                                                       Q(user_id=request_data["user_id"])).first()
+        if existing_relation:
+            message = dict()
+            if existing_relation.request_status.lower() == "pending":
+                message["detail"] = "A request is in pending status for this user"
+            else:
+                message["detail"] = "You are not allowed to send request to this user"
+            return Response(message, status=status.HTTP_401_UNAUTHORIZED)
+
+        serializer = serializers.RelationRequestSerializer(data=request_data)
+        serializer.is_valid(raise_exception=True)
+        relation_request = c_func.add_user_business_relation(request, request.user.business.id,
+                                                             request_data["user_id"], request_data["comments"],
+                                                             request_data["status"])
+        data = serializers.RelationRequestSerializer(relation_request).data
+        return Response(data=data, status=status.HTTP_200_OK)
+
+
+@api_view(["PUT", "DELETE"])
+@permission_classes([IsAuthenticated])
+def update_delete_relation_request(request, id):
+    """Updates or deletes a relation request"""
+    existing_relation = get_object_or_404(models.UserBusinessRelation, pk=id)
+    if request.method == "PUT":
+        if request.user.user_role != "normal_user":
+            detail = {
+                "detail": "You do not have permission to perform this action."
+            }
+            return Response(detail, status=status.HTTP_401_UNAUTHORIZED)
+
+        serializer = serializers.RelationRequestSerializer(instance=existing_relation,
+                                                           data=request.data,
+                                                           partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save(
+            updated_by=request.user.id,
+            updated_on=helpers.get_current_time()
+        )
+        return Response(data=serializer.data, status=status.HTTP_200_OK)
+    else:
+        if request.user.user_role == "normal_user":
+            detail = {
+                "detail": "You do not have permission to perform this action."
+            }
+            return Response(detail, status=status.HTTP_401_UNAUTHORIZED)
+
+        if existing_relation.request_status.lower() != "pending":
+            detail = {
+                "detail": "You can only delete pending requests"
+            }
+            return Response(detail, status=status.HTTP_401_UNAUTHORIZED)
+
+        existing_relation.delete()
+        return Response(None, status=status.HTTP_204_NO_CONTENT)

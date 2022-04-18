@@ -116,8 +116,39 @@ class UserProfileReadOnlySerializer(serializers.ModelSerializer):
 
 
 class CustomerProfileSerializer(serializers.ModelSerializer):
-    """serializes user profile data"""
+    """serializes customer profile data"""
     class Meta:
         model = models.UserProfile
         fields = ("full_name", "display_name", "phone", "date_of_birth",
                   "gender", "marital_status")
+
+
+class RelationRequestSerializer(serializers.ModelSerializer):
+    """serializes relation request data"""
+    request_date = serializers.DateTimeField(required=False)
+    request_expiry_date = serializers.DateTimeField(required=False)
+    business_id = serializers.CharField(required=False)
+
+    class Meta:
+        model = models.UserBusinessRelation
+        fields = ("id", "user_id", "business_id", "request_status", "request_date",
+                  "request_expiry_date", "comments")
+        read_only_fields = ("id",)
+
+    def create(self, validated_data):
+        """Creates a new relation request with validated data"""
+        relation_request = models.UserBusinessRelation.objects.create(**validated_data)
+        return relation_request
+
+    def update(self, instance, validated_data):
+        """updates a relation request obj in DB"""
+        instance.user_id = validated_data.get("user_id", instance.user_id)
+        instance.business_id = validated_data.get("business_id", instance.business_id)
+        instance.request_status = validated_data.get("request_status", instance.request_status)
+        instance.request_expiry_date = validated_data.get("request_expiry_date", instance.request_expiry_date)
+        instance.comments = validated_data.get("comments", instance.comments)
+        instance.updated_on = validated_data["updated_on"]
+        instance.updated_by = validated_data["updated_by"]
+
+        instance.save()
+        return instance

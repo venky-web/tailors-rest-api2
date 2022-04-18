@@ -145,8 +145,9 @@ class UserBusinessRelation(models.Model):
     request_status = models.CharField(max_length=255, default="pending")
     request_date = models.DateTimeField()
     request_expiry_date = models.DateTimeField()
-    updated_date = models.DateTimeField()
     comments = models.TextField(null=True, blank=True)
+    updated_on = models.DateTimeField()
+    updated_by = models.CharField(max_length=255, null=True, blank=True)
 
     class Meta:
         db_table = "t_user_business_relation"
